@@ -98,7 +98,8 @@ export function sanitizeText(text: string) {
 }
 
 export function convertToUIMessages(messages: DBMessage[]): ChatMessage[] {
-  return messages.map((message) => ({
+  console.log('Converting messages - Input DBMessages:', JSON.stringify(messages, null, 2));
+  const uiMessages = messages.map((message) => ({
     id: message.id,
     role: message.role as 'user' | 'assistant' | 'system',
     parts: message.parts as UIMessagePart<CustomUIDataTypes, ChatTools>[],
@@ -106,6 +107,8 @@ export function convertToUIMessages(messages: DBMessage[]): ChatMessage[] {
       createdAt: formatISO(message.createdAt),
     },
   }));
+  console.log('Converting messages - Output UIMessages:', JSON.stringify(uiMessages, null, 2));
+  return uiMessages;
 }
 
 export function getTextFromMessage(message: ChatMessage): string {

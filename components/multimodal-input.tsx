@@ -1,6 +1,6 @@
 'use client';
 
-import type { LanguageModelUsage, UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
 import {
   useRef,
   useEffect,
@@ -10,7 +10,6 @@ import {
   type SetStateAction,
   type ChangeEvent,
   memo,
-  useMemo,
 } from 'react';
 import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
@@ -29,7 +28,7 @@ import {
   PromptInputModelSelectTrigger,
   PromptInputModelSelectContent,
 } from './elements/prompt-input';
-import { SelectItem, } from '@/components/ui/select';
+import { SelectItem, SelectValue } from '@/components/ui/select';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -40,9 +39,6 @@ import type { Attachment, ChatMessage } from '@/lib/types';
 import { chatModels } from '@/lib/ai/models';
 import { saveChatModelAsCookie } from '@/app/(chat)/actions';
 import { startTransition } from 'react';
-import { getContextWindow, normalizeUsage } from 'tokenlens';
-import { Context } from './elements/context';
-import { myProvider } from '@/lib/ai/providers';
 
 function PureMultimodalInput({
   chatId,
@@ -58,7 +54,6 @@ function PureMultimodalInput({
   className,
   selectedVisibilityType,
   selectedModelId,
-  usage,
 }: {
   chatId: string;
   input: string;
@@ -73,7 +68,6 @@ function PureMultimodalInput({
   className?: string;
   selectedVisibilityType: VisibilityType;
   selectedModelId: string;
-  usage?: LanguageModelUsage;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -86,13 +80,13 @@ function PureMultimodalInput({
 
   const adjustHeight = () => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = '44px';
+      textareaRef.current.style.height = '72px';
     }
   };
 
   const resetHeight = () => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = '44px';
+      textareaRef.current.style.height = '72px';
     }
   };
 
@@ -126,6 +120,8 @@ function PureMultimodalInput({
 
   const submitForm = useCallback(() => {
     window.history.replaceState({}, '', `/chat/${chatId}`);
+
+    console.log('Frontend - Input before sending:', input);
 
     sendMessage({
       role: 'user',
@@ -189,35 +185,6 @@ function PureMultimodalInput({
     }
   };
 
-  const modelResolver = useMemo(() => {
-    return myProvider.languageModel(selectedModelId);
-  }, [selectedModelId]);
-
-  const contextMax = useMemo(() => {
-    // Resolve from selected model; stable across chunks.
-    const cw = getContextWindow(modelResolver.modelId);
-    return cw.combinedMax ?? cw.inputMax ?? 0;
-  }, [modelResolver]);
-
-  const usedTokens = useMemo(() => {
-    // Prefer explicit usage data part captured via onData
-    if (!usage) return 0; // update only when final usage arrives
-    const n = normalizeUsage(usage);
-    return typeof n.total === 'number'
-      ? n.total
-      : (n.input ?? 0) + (n.output ?? 0);
-  }, [usage]);
-
-  const contextProps = useMemo(
-    () => ({
-      maxTokens: contextMax,
-      usedTokens,
-      usage,
-      modelId: modelResolver.modelId,
-    }),
-    [contextMax, usedTokens, usage, modelResolver],
-  );
-
   const handleFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
@@ -261,7 +228,7 @@ function PureMultimodalInput({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="absolute -top-12 left-1/2 z-50 -translate-x-1/2"
+            className="absolute bottom-28 left-1/2 z-50 -translate-x-1/2"
           >
             <Button
               data-testid="scroll-to-bottom-button"
@@ -299,7 +266,7 @@ function PureMultimodalInput({
       />
 
       <PromptInput
-        className="rounded-xl border shadow-sm transition-all duration-200 bg-background border-border focus-within:border-border hover:border-muted-foreground/50"
+        className="bg-gray-50 rounded-3xl border border-gray-300 shadow-none transition-all duration-200 dark:bg-sidebar dark:border-sidebar-border hover:ring-1 hover:ring-primary/30 focus-within:ring-1 focus-within:ring-primary/50"
         onSubmit={(event) => {
           event.preventDefault();
           if (status !== 'ready') {
@@ -342,41 +309,34 @@ function PureMultimodalInput({
             ))}
           </div>
         )}
-        <div className="flex flex-row gap-2 items-start">
-          <PromptInputTextarea
-            data-testid="multimodal-input"
-            ref={textareaRef}
-            placeholder="Send a message..."
-            value={input}
-            onChange={handleInput}
-            minHeight={44}
-            maxHeight={200}
-            disableAutoResize={true}
-            className="text-sm flex-grow resize-none py-3 px-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] bg-transparent !border-0 !border-none outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none placeholder:text-muted-foreground"
-            rows={1}
-            autoFocus
-          />{' '}
-          <Context {...contextProps} />
-        </div>
-        <PromptInputToolbar className="px-3 py-2 !border-t-0 !border-top-0 shadow-none dark:!border-transparent dark:border-0">
-          <PromptInputTools className="gap-2">
-            <AttachmentsButton
-              fileInputRef={fileInputRef}
-              status={status}
-              selectedModelId={selectedModelId}
-            />
-            <ModelSelectorCompact selectedModelId={selectedModelId} />
-          </PromptInputTools>
 
+        <PromptInputTextarea
+          data-testid="multimodal-input"
+          ref={textareaRef}
+          placeholder="Send a message..."
+          value={input}
+          onChange={handleInput}
+          minHeight={72}
+          maxHeight={200}
+          disableAutoResize={true}
+          className="text-base resize-none py-4 px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] bg-transparent !border-0 !border-none outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+          rows={1}
+          autoFocus
+        />
+        <PromptInputToolbar className="px-4 py-2 !border-t-0 !border-top-0 shadow-none dark:!border-transparent dark:border-0">
+          <PromptInputTools className="gap-2">
+            {/* <AttachmentsButton fileInputRef={fileInputRef} status={status} /> */}
+            {/* <ModelSelectorCompact selectedModelId={selectedModelId} /> */}
+          </PromptInputTools>
           {status === 'submitted' ? (
             <StopButton stop={stop} setMessages={setMessages} />
           ) : (
             <PromptInputSubmit
               status={status}
               disabled={!input.trim() || uploadQueue.length > 0}
-              className="p-2 rounded-full transition-colors duration-200 text-primary-foreground bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
+              className="p-3 text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 dark:bg-sidebar-accent dark:hover:bg-sidebar-accent/80 dark:text-gray-300"
             >
-              <ArrowUpIcon size={16} />
+              <ArrowUpIcon size={20} />
             </PromptInputSubmit>
           )}
         </PromptInputToolbar>
@@ -402,25 +362,20 @@ export const MultimodalInput = memo(
 function PureAttachmentsButton({
   fileInputRef,
   status,
-  selectedModelId,
 }: {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
   status: UseChatHelpers<ChatMessage>['status'];
-  selectedModelId: string;
 }) {
-  const isReasoningModel = selectedModelId === 'chat-model-reasoning';
-
   return (
     <Button
       data-testid="attachments-button"
-      className="rounded-md p-1.5 h-fit hover:bg-muted transition-colors duration-200"
+      className="rounded-md rounded-bl-lg p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200"
       onClick={(event) => {
         event.preventDefault();
         fileInputRef.current?.click();
       }}
-      disabled={status !== 'ready' || isReasoningModel}
+      disabled={status !== 'ready'}
       variant="ghost"
-      size="sm"
     >
       <PaperclipIcon size={14} />
     </Button>
@@ -487,18 +442,47 @@ function PureStopButton({
   return (
     <Button
       data-testid="stop-button"
-      className="p-2 rounded-full border transition-colors duration-200 h-fit border-border hover:bg-muted"
+      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
       onClick={(event) => {
         event.preventDefault();
         stop();
         setMessages((messages) => messages);
       }}
-      variant="outline"
-      size="sm"
     >
-      <StopIcon size={16} />
+      <StopIcon size={14} />
     </Button>
   );
 }
 
 const StopButton = memo(PureStopButton);
+
+function PureSendButton({
+  submitForm,
+  input,
+  uploadQueue,
+}: {
+  submitForm: () => void;
+  input: string;
+  uploadQueue: Array<string>;
+}) {
+  return (
+    <Button
+      data-testid="send-button"
+      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
+      onClick={(event) => {
+        event.preventDefault();
+        submitForm();
+      }}
+      disabled={input.length === 0 || uploadQueue.length > 0}
+    >
+      <ArrowUpIcon size={14} />
+    </Button>
+  );
+}
+
+const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
+  if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length)
+    return false;
+  if (prevProps.input !== nextProps.input) return false;
+  return true;
+});

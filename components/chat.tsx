@@ -1,12 +1,12 @@
 'use client';
 
-import { DefaultChatTransport, type LanguageModelUsage } from 'ai';
+import { DefaultChatTransport } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
-import { fetcher, fetchWithErrorHandlers, generateUUID } from '@/lib/utils';
+import { fetcher, fetchWithErrorHandlers, generateUUID, cn } from '@/lib/utils';
 import { Artifact } from './artifact';
 import { MultimodalInput } from './multimodal-input';
 import { Messages } from './messages';
@@ -31,7 +31,6 @@ export function Chat({
   isReadonly,
   session,
   autoResume,
-  initialLastContext,
 }: {
   id: string;
   initialMessages: ChatMessage[];
@@ -40,7 +39,6 @@ export function Chat({
   isReadonly: boolean;
   session: Session;
   autoResume: boolean;
-  initialLastContext?: LanguageModelUsage;
 }) {
   const { visibilityType } = useChatVisibility({
     chatId: id,
@@ -51,9 +49,6 @@ export function Chat({
   const { setDataStream } = useDataStream();
 
   const [input, setInput] = useState<string>('');
-  const [usage, setUsage] = useState<LanguageModelUsage | undefined>(
-    initialLastContext,
-  );
 
   const {
     messages,
@@ -84,10 +79,22 @@ export function Chat({
       },
     }),
     onData: (dataPart) => {
-      setDataStream((ds) => (ds ? [...ds, dataPart] : []));
-      if (dataPart.type === 'data-usage') {
-        setUsage(dataPart.data);
+      console.log('Frontend - onData received:', dataPart);
+      // Update the messages state directly for UI display
+      if (dataPart.type === 'data-textDelta') {
+        setMessages((currentMessages) => [
+          ...currentMessages,
+          {
+            id: generateUUID(),
+            role: 'assistant',
+            parts: [{ type: 'text', text: dataPart.data as string }],
+            createdAt: new Date(),
+            attachments: [],
+          },
+        ]);
       }
+      // We can remove setDataStream here if it's not used for anything else
+      // setDataStream((ds) => (ds ? [...ds, dataPart] : []));
     },
     onFinish: () => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
@@ -136,7 +143,7 @@ export function Chat({
 
   return (
     <>
-      <div className="flex flex-col min-w-0 h-dvh bg-background touch-pan-y overscroll-behavior-contain">
+      <div className="flex flex-col min-w-0 h-dvh bg-background">
         <ChatHeader
           chatId={id}
           selectedVisibilityType={initialVisibilityType}
@@ -153,10 +160,9 @@ export function Chat({
           regenerate={regenerate}
           isReadonly={isReadonly}
           isArtifactVisible={isArtifactVisible}
-          selectedModelId={initialChatModel}
         />
 
-        <div className="sticky bottom-0 flex gap-2 px-2 md:px-4 pb-3 md:pb-4 mx-auto w-full bg-background max-w-4xl z-[1] border-t-0">
+        <div className="sticky bottom-0 flex gap-2 px-4 pb-4 mx-auto w-full bg-background md:pb-6 md:max-w-3xl z-[1] border-t-0">
           {!isReadonly && (
             <MultimodalInput
               chatId={id}
@@ -171,7 +177,6 @@ export function Chat({
               sendMessage={sendMessage}
               selectedVisibilityType={visibilityType}
               selectedModelId={initialChatModel}
-              usage={usage}
             />
           )}
         </div>
